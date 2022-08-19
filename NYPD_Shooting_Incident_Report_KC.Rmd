@@ -1,0 +1,107 @@
+---
+title: "Data Analysis of NYPD Shooting Incidents"
+author: "K.Chen"
+date: "2022-08-08"
+output:
+  html_document: default
+  pdf_document: default
+---
+# Purpose: Data analysis of NYPD shooting incidents from 2006 to 2022. The data is inspected as shooting incidents as a function of time broken down by months. 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+**Following packages are required to run the analysis below**
+```{r LoadLibrary}
+library(tidyverse)
+library(lubridate)
+```
+
+## Import dataset 
+#### NYPD shooting incident data was provided by data.gov catalog.  Dataset is a list of every recorded shooting incident that occurred in NYC from 2006 to 2021.
+```{r get_data}
+url_up <- "https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD"
+NYPD_shoot_Inc <- read_csv(url_up)
+```
+
+## Once the data is imported, let's take a quick look at the data summary to inspect what kind data is recorded.
+
+```{r data_summary}
+NYPD_shoot_Inc %>% 
+  summary() 
+
+```
+#### We see that the date is recorded for every incident and this data can be used to study when shooting incidents occur. 
+
+## Tidying the dataset and removing unnecessary information for the analysis
+
+```{r tidy_data}
+df_NYPD_si <- NYPD_shoot_Inc %>%
+  mutate(OCCUR_DATE = mdy(OCCUR_DATE)) %>%
+  mutate(INCIDENT_KEY = 1) %>% 
+  rename(INCIDENT = INCIDENT_KEY) %>% 
+  select(INCIDENT, OCCUR_DATE, OCCUR_TIME)
+
+```
+
+## Grouping the incidents by the month it occurred
+
+```{r by month_yr}
+NYPD_si_by_month <- df_NYPD_si %>%
+  group_by(month_yr = lubridate::floor_date(OCCUR_DATE, 'month')) %>%
+  summarize(TOTAL_SI = sum(INCIDENT))
+
+# check if total incidents are matching with total incidents as displayed in the summary: 25,596
+sum(NYPD_si_by_month$TOTAL_SI)
+
+```
+ 
+## Visualizing the data 
+ 
+```{r visualize}
+# Plot NYPD Shooting Incidents by Month
+NYPD_si_by_month %>%
+  ggplot(aes(x = month_yr, y = TOTAL_SI)) +
+  geom_point() +
+  labs(title = 'NYPD Monthly Shooting Incidents 2006 - 2022', y=NULL) +
+  scale_x_date(name = 'Year', date_labels = "%Y", date_breaks = "1 year")
+
+# Create new column that gives month of incidents
+NYPD_si_by_month$monthlySI <- strftime(NYPD_si_by_month$month_yr, "%m")
+
+#group total incidents by month
+NYPD_tot_month <- NYPD_si_by_month %>% 
+group_by(monthlySI) %>%
+summarise(total_monthlySI = sum(TOTAL_SI))
+
+# Create Barplot of total incidents by month
+monthlySI <- c(NYPD_tot_month$total_monthlySI)
+months_str <- month.abb[1:12]
+barplot(monthlySI, names = months_str, main = 'NYPD Total Shooting Incidents By Month')
+```
+
+### Model trend of shooting incidents.
+
+```{r months with most shooting incidents}
+NYPD_si_by_year <- df_NYPD_si %>%
+  group_by(month_yr = lubridate::floor_date(OCCUR_DATE, 'month')) %>%
+  summarize(TOTAL_SI = sum(INCIDENT))
+NYPD_si_by_year$monthlySI <- strftime(NYPD_si_by_month$month_yr, "%m")
+NYPD_si_by_year$yearSI <- strftime(NYPD_si_by_month$month_yr, "%y")
+
+## Find the highest shooting incidents for every month over 15 years
+NYPD_si_by_year %>%
+  group_by(monthlySI) %>%
+  summarize(max = max(TOTAL_SI))
+
+Max_monthlySI_by_yr <- c(8,7,7,7,6,9,7,8,8,5,8,6,7,7,7,8)
+data <- data.frame(Max_monthlySI_by_yr)
+ggplot(data, aes(x = Max_monthlySI_by_yr)) + geom_bar() + labs(title = "Count of Months with Highest Shooting Incidents", x = "Month", y = "Count")
+
+## Data is centrally distributed. Elevated Shooting incidents can be predicted to happen during the summer months.
+```
+
+### Conclusion: My analysis of the NYPD data set looks at documented shooting incidents that occurred in New York City between 2006 and 2021. The first piece of data that was analyzed was looking to see if there was a pattern of shooting incidents across the entire time frame. This is visualized in the scatter plot titled: "NYPD Monthly Shooting Incidents 2006 - 2022".  In this visualization we can see that there are some months with high shooting incidents and some months that are much lower.  This point distribution is seen throughout the dataset except for years 2017-2020.  This led to looking at the total shooting incidents by month, which is depicted by the visualization named: "NYPD Total Shooting Incidents By Month". Here we see that across the observed years, the shooting incidents are highest in the summer months. However, this prompted a question: is this notable difference due to outlier months that might have skewed the totals?  To answer this, the month with the highest shooting incidents of each year was tallied and plotted in the bar chart: "Count of Months with Highest Shooting Incidents". With this chart we see that across the 16 year span, the highest recorded shooting incidents happend in the months of June, July, and August.  Only 2 years did the highest incidents occur outside of summer. When initially analyzing the dataset I had bias in the prediction of the results due to personal propensities of when I thought shootings would occur. I naturally predicted that shootings would be more prevalent during winter because of the colder weather and associating shooting incidents to crimes relating to holiday robberies. This bias was mitigated with the data analysis which dispelled my initial hypothesis.  
+```{r Sessioninfo}
+sessionInfo()
+```
+
